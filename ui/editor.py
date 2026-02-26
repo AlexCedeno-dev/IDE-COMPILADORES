@@ -7,7 +7,7 @@ class CodeEditor(QPlainTextEdit):
         super().__init__()
 
         # Fuente tipo IDE
-        font = QFont("Consolas", 11)
+        font = QFont("Consolas", 15)
         self.setFont(font)
 
         # Texto de ejemplo
