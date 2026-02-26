@@ -2,6 +2,10 @@ from PyQt6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox)
 from PyQt6.QtGui import QAction
 from ui.editor import CodeEditor
 
+from PyQt6.QtWidgets import QTextEdit
+import subprocess
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -13,6 +17,8 @@ class MainWindow(QMainWindow):
 
         #Editor central 
         self.editor = CodeEditor()
+        print(isinstance(self.editor, QTextEdit))
+        print(type(self.editor))
         self.setCentralWidget(self.editor)
 
         #archivo actual
@@ -21,6 +27,10 @@ class MainWindow(QMainWindow):
         #Crear menú
         self.create_menu()
 
+        # Toolbar
+        toolbar = self.addToolBar("Compilar")
+
+
 # ----------------------------
 #            MENÚ
 # ----------------------------
@@ -28,6 +38,7 @@ class MainWindow(QMainWindow):
 
         menu_bar = self.menuBar()
 
+        #-----------------------------
         # MENU ARCHIVO
         file_menu = menu_bar.addMenu("Archivo")
 
@@ -63,7 +74,27 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
-    # ---------------- FUNCIONES ----------------
+#-------------------------------------------------------------
+        # MENU COMPILAR
+        compile_menu = self.menuBar().addMenu("Compilar")
+
+        # Analisis Lexico
+        lex_action = QAction("Analisis Léxico", self)
+        lex_action.triggered.connect(self.run_lexer)
+        compile_menu.addAction(lex_action)
+
+        # Analisis Sintactico
+        syn_action = QAction("Analisis Sintáctico", self)    
+        syn_action.triggered.connect(self.run_parser)
+        compile_menu.addAction(syn_action)
+
+        # Analisis Semantico
+        sem_action = QAction("Analisis Semántico", self)
+        sem_action.triggered.connect(self.run_semantic)
+        compile_menu.addAction(sem_action)
+
+
+    # ---------------- FUNCIONES DE MENU DE ARCHIVOS----------------
 
     def new_file(self):
         self.editor.clear()
@@ -101,3 +132,13 @@ class MainWindow(QMainWindow):
             with open(file_name, "w", encoding="utf-8") as file:
                 file.write(self.editor.toPlainText())
             self.current_file = file_name
+
+
+    # ---------------- FUNCIONES DE MENU DE COMPILADOR----------------
+
+        def run_lexer(self):
+            if not self.current_file:
+                return
+            
+            result = subprocess.run(["python", "compiler/lexer.py", self.current_file], capture_output=True, text=True)
+            print(result.stdout)
