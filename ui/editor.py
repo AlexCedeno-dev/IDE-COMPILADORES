@@ -10,5 +10,5 @@ class CodeEditor(QPlainTextEdit):
         font = QFont("Consolas", 15)
         self.setFont(font)
 
-        # Texto de ejemplo
+ 
         self.setPlaceholderText("Escribe tu codigo aqui...")
