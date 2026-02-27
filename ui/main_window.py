@@ -1,100 +1,94 @@
-from PyQt6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox) 
+from PyQt6.QtWidgets import (QMainWindow,QFileDialog,QTextEdit,QDockWidget)
 from PyQt6.QtGui import QAction
-from ui.editor import CodeEditor
+from PyQt6.QtCore import Qt
 
-from PyQt6.QtWidgets import QTextEdit
+from ui.editor import CodeEditor
 import subprocess
 
 
 class MainWindow(QMainWindow):
+
     def __init__(self):
         super().__init__()
 
+        # ---------------- Ventana ----------------
         self.setWindowTitle("IDE Compilador")
-        
-        #Tamaño de la ventana
         self.resize(1000, 700)
 
-        #Editor central 
+        # ---------------- Editor central ----------------
         self.editor = CodeEditor()
-        print(isinstance(self.editor, QTextEdit))
-        print(type(self.editor))
         self.setCentralWidget(self.editor)
 
-        #archivo actual
+        # archivo actual
         self.current_file = None
 
-        #Crear menú
+        # ---------------- Consola inferior ----------------
+        self.console = QTextEdit()
+        self.console.setReadOnly(True)
+        self.console.setPlaceholderText("Salida del compilador...")
+
+        self.console_dock = QDockWidget("Consola", self)
+        self.console_dock.setWidget(self.console)
+
+        self.addDockWidget(
+            Qt.DockWidgetArea.BottomDockWidgetArea,
+            self.console_dock
+        )
+
+        # Crear menú
         self.create_menu()
 
-        # Toolbar
-        toolbar = self.addToolBar("Compilar")
+    # =====================================================
+    #                    MENÚ
+    # =====================================================
 
-
-# ----------------------------
-#            MENÚ
-# ----------------------------
     def create_menu(self):
 
         menu_bar = self.menuBar()
 
-        #-----------------------------
-        # MENU ARCHIVO
+        # ---------------- MENU ARCHIVO ----------------
         file_menu = menu_bar.addMenu("Archivo")
 
-        # NUEVO
         new_action = QAction("Nuevo", self)
         new_action.triggered.connect(self.new_file)
         file_menu.addAction(new_action)
 
-        # ABRIR
         open_action = QAction("Abrir", self)
         open_action.triggered.connect(self.open_file)
         file_menu.addAction(open_action)
 
-        # GUARDAR
         save_action = QAction("Guardar", self)
         save_action.triggered.connect(self.save_file)
         file_menu.addAction(save_action)
 
-        # GUARDAR COMO
         save_as_action = QAction("Guardar como", self)
         save_as_action.triggered.connect(self.save_as_file)
         file_menu.addAction(save_as_action)
 
-        # CERRAR
-        close_action = QAction("Cerrar", self)
-        close_action.triggered.connect(self.close)
-        file_menu.addAction(close_action)
-
         file_menu.addSeparator()
 
-        # SALIR
         exit_action = QAction("Salir", self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
-#-------------------------------------------------------------
-        # MENU COMPILAR
-        compile_menu = self.menuBar().addMenu("Compilar")
+        # ---------------- MENU COMPILAR ----------------
+        compile_menu = menu_bar.addMenu("Compilar")
 
-        # Analisis Lexico
-        lex_action = QAction("Analisis Léxico", self)
+        lex_action = QAction("Análisis Léxico", self)
         lex_action.triggered.connect(self.run_lexer)
         compile_menu.addAction(lex_action)
 
-        # Analisis Sintactico
-        syn_action = QAction("Analisis Sintáctico", self)    
+        syn_action = QAction("Análisis Sintáctico", self)
         syn_action.triggered.connect(self.run_parser)
         compile_menu.addAction(syn_action)
 
-        # Analisis Semantico
-        sem_action = QAction("Analisis Semántico", self)
+        sem_action = QAction("Análisis Semántico", self)
         sem_action.triggered.connect(self.run_semantic)
         compile_menu.addAction(sem_action)
 
-
-    # ---------------- FUNCIONES DE MENU DE ARCHIVOS----------------
+    # =====================================================
+    #                FUNCIONES ARCHIVO
+    # =====================================================
 
     def new_file(self):
         self.editor.clear()
@@ -105,12 +99,13 @@ class MainWindow(QMainWindow):
             self,
             "Abrir archivo",
             "",
-            "Archivos de texto (*.txt *.c *.cpp *.py)"
+            "Archivos (*.txt *.py *.c *.cpp)"
         )
 
         if file_name:
             with open(file_name, "r", encoding="utf-8") as file:
                 self.editor.setPlainText(file.read())
+
             self.current_file = file_name
 
     def save_file(self):
@@ -125,20 +120,52 @@ class MainWindow(QMainWindow):
             self,
             "Guardar archivo",
             "",
-            "Archivos de texto (*.txt)"
+            "Archivos (*.txt)"
         )
 
         if file_name:
             with open(file_name, "w", encoding="utf-8") as file:
                 file.write(self.editor.toPlainText())
+
             self.current_file = file_name
 
+    # =====================================================
+    #                CONSOLA
+    # =====================================================
 
-    # ---------------- FUNCIONES DE MENU DE COMPILADOR----------------
+    def write_console(self, text):
+        self.console.append(text)
 
-        def run_lexer(self):
-            if not self.current_file:
-                return
-            
-            result = subprocess.run(["python", "compiler/lexer.py", self.current_file], capture_output=True, text=True)
-            print(result.stdout)
+    # =====================================================
+    #            FUNCIONES DEL COMPILADOR
+    # =====================================================
+
+    def run_lexer(self):
+
+        if not self.current_file:
+            self.write_console("⚠ Guarda el archivo antes de ejecutar.")
+            return
+
+        self.write_console(">>> Ejecutando análisis léxico...\n")
+
+        try:
+            result = subprocess.run(
+                ["python", "compiler/lexer.py", self.current_file],
+                capture_output=True,
+                text=True
+            )
+
+            if result.stdout:
+                self.write_console(result.stdout)
+
+            if result.stderr:
+                self.write_console("ERROR:\n" + result.stderr)
+
+        except Exception as e:
+            self.write_console(f"Error: {e}")
+
+    def run_parser(self):
+        self.write_console(">>> Análisis sintáctico (pendiente)")
+
+    def run_semantic(self):
+        self.write_console(">>> Análisis semántico (pendiente)")
