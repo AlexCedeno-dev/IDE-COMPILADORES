@@ -107,7 +107,7 @@ class MainWindow(QMainWindow):
         menu_bar = self.menuBar()
 
         # ===== ARCHIVO =====
-        file_menu = menu_bar.addMenu("📁 Archivo")
+        file_menu = menu_bar.addMenu("Archivo")
 
         new_action = QAction("Nuevo", self)
         new_action.setShortcut(QKeySequence("Ctrl+N"))
@@ -142,7 +142,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction(exit_action)
 
         # ===== PESTAÑAS =====
-        tabs_menu = menu_bar.addMenu("🗂️ Pestañas")
+        tabs_menu = menu_bar.addMenu("Pestañas")
 
         next_tab = QAction("Siguiente", self)
         next_tab.setShortcut(QKeySequence("Ctrl+Tab"))
@@ -163,7 +163,7 @@ class MainWindow(QMainWindow):
         tabs_menu.addAction(prev_tab)
 
         # ===== TEMAS =====
-        theme_menu = menu_bar.addMenu("🎨 Temas")
+        theme_menu = menu_bar.addMenu("Temas")
 
         dark = QAction("Oscuro", self)
         dark.triggered.connect(lambda: self.set_theme("dark"))
@@ -176,6 +176,33 @@ class MainWindow(QMainWindow):
         dracula = QAction("Dracula", self)
         dracula.triggered.connect(lambda: self.set_theme("dracula"))
         theme_menu.addAction(dracula)
+
+        ocean = QAction("Ocean Blue", self)
+        ocean.triggered.connect(lambda: self.set_theme("ocean"))
+        theme_menu.addAction(ocean)
+
+        sunset = QAction("Sunset", self)
+        sunset.triggered.connect(lambda: self.set_theme("sunset"))
+        theme_menu.addAction(sunset)
+
+        forest = QAction("Forest", self)
+        forest.triggered.connect(lambda: self.set_theme("forest"))
+        theme_menu.addAction(forest)
+
+        neon = QAction("Neon Purple", self)
+        neon.triggered.connect(lambda: self.set_theme("neon"))
+        theme_menu.addAction(neon)
+
+        hacker = QAction("Hacker Classic", self)
+        hacker.triggered.connect(lambda: self.set_theme("hacker"))
+        theme_menu.addAction(hacker)
+
+        # ===== DESARROLLADORES =====
+        dev_menu = menu_bar.addMenu("Desarrolladores")
+
+        about_dev = QAction("Equipo de Desarrollo", self)
+        about_dev.triggered.connect(self.show_developers)
+        dev_menu.addAction(about_dev)
 
     # =========================
     # TOOLBAR
@@ -277,3 +304,99 @@ class MainWindow(QMainWindow):
                 QTextEdit { background:#44475a; color:#f8f8f2; }
                 QTabBar::tab:selected { background:#bd93f9; }
             """)
+
+        elif theme == "ocean":
+            self.setStyleSheet("""
+                QMainWindow { background:#0f172a; color:#e2e8f0; }
+                QTextEdit { background:#1e293b; color:#e2e8f0; }
+                QTabWidget::pane { border: 1px solid #334155; }
+                QTabBar::tab { background:#1e293b; padding:8px; }
+                QTabBar::tab:selected { background:#3b82f6; color:white; }
+                QMenuBar { background:#0f172a; color:#e2e8f0; }
+                QMenu { background:#1e293b; color:#e2e8f0; }
+            """)
+
+        elif theme == "sunset":
+            self.setStyleSheet("""
+                QMainWindow { background:#2b1d1d; color:#ffe4d6; }
+                QTextEdit { background:#3a2a2a; color:#fff3e6; }
+                QTabBar::tab { background:#3a2a2a; padding:8px; }
+                QTabBar::tab:selected { background:#ff7b00; color:black; }
+                QMenuBar { background:#2b1d1d; color:#ffe4d6; }
+                QMenu { background:#3a2a2a; color:#fff3e6; }
+            """)
+
+        elif theme == "forest":
+            self.setStyleSheet("""
+                QMainWindow { background:#0d1f1a; color:#d1fae5; }
+                QTextEdit { background:#13332b; color:#a7f3d0; }
+                QTabBar::tab { background:#13332b; padding:8px; }
+                QTabBar::tab:selected { background:#10b981; color:black; }
+                QMenuBar { background:#0d1f1a; color:#d1fae5; }
+                QMenu { background:#13332b; color:#a7f3d0; }
+            """)            
+
+        elif theme == "neon":
+            self.setStyleSheet("""
+                QMainWindow { background:#140021; color:#f5d0fe; }
+                QTextEdit { background:#1f0033; color:#e879f9; }
+                QTabBar::tab { background:#1f0033; padding:8px; }
+                QTabBar::tab:selected { background:#c026d3; color:white; }
+                QMenuBar { background:#140021; color:#f5d0fe; }
+                QMenu { background:#1f0033; color:#e879f9; }
+            """)
+
+        elif theme == "hacker":
+            self.setStyleSheet("""
+                QMainWindow { background:black; color:#00ff00; }
+                QTextEdit { background:black; color:#00ff00; }
+                QTabBar::tab { background:#001100; padding:8px; }
+                QTabBar::tab:selected { background:#00aa00; color:black; }
+                QMenuBar { background:black; color:#00ff00; }
+                QMenu { background:#001100; color:#00ff00; }
+            """)
+    
+    def show_developers(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Desarrolladores")
+        dialog.resize(420, 300)
+
+        layout = QVBoxLayout()
+
+        title = QLabel("IDE Compilador")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size:18px; font-weight:bold;")
+
+        subtitle = QLabel("Equipo de Desarrollo:")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        dev1 = QLabel("Jesus Abraham Robledo Lopez")
+        dev1.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        dev1.setStyleSheet("font-size:14px; color:#3b82f6;")
+
+        id1 = QLabel("ID: 284745")
+        id1.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        dev2 = QLabel("Edgar Alejandro Cedeño Suarez")
+        dev2.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        dev2.setStyleSheet("font-size:14px; color:#10b981;")
+
+        id2 = QLabel("ID: 262728")
+        id2.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        version = QLabel("Versión 1.0")
+        version.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
+        layout.addSpacing(10)
+        layout.addWidget(dev1)
+        layout.addWidget(id1)
+        layout.addSpacing(10)
+        layout.addWidget(dev2)
+        layout.addWidget(id2)
+        layout.addSpacing(10)
+        layout.addWidget(version)
+
+        dialog.setLayout(layout)
+        dialog.exec()
