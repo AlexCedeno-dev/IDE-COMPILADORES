@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import *
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSettings
 from PyQt6.QtGui import QAction, QKeySequence, QIcon
 from ui.editor import CodeEditor
 import subprocess
@@ -9,6 +9,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        self.settings = QSettings("IDECompilador", "IDEConfig")
 
         self.setWindowTitle("IDE Compilador")
         self.resize(1200, 800)
@@ -26,6 +27,8 @@ class MainWindow(QMainWindow):
         self.create_docks()
 
         self.new_file()
+        saved_theme = self.settings.value("theme", "dark")
+        self.set_theme(saved_theme)
         
         self.current_file = None
     # =========================
@@ -407,6 +410,9 @@ class MainWindow(QMainWindow):
                 QMenuBar { background:black; color:#00ff00; }
                 QMenu { background:#001100; color:#00ff00; }
             """)
+
+            self.settings.setValue("theme", theme)
+
     
     def show_developers(self):
         dialog = QDialog(self)
