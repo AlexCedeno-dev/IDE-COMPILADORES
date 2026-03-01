@@ -19,7 +19,6 @@ class MainWindow(QMainWindow):
         self.resize(1200, 800)
 
         self.closed_tabs = []
-
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
         self.tabs.tabCloseRequested.connect(self.close_tab)
@@ -29,17 +28,17 @@ class MainWindow(QMainWindow):
         self.create_menu()
         self.create_toolbar()
         self.create_docks()
-        self.init_terminal()
         self.create_file_explorer()
+        self.init_terminal()
 
         self.new_file()
 
         saved_theme = self.settings.value("theme", "dark")
         self.set_theme(saved_theme)
-        self.console.setPlainText("")  
+
         self.autosave_timer = QTimer()
         self.autosave_timer.timeout.connect(self.auto_save)
-        self.autosave_timer.start(5000)  
+        self.autosave_timer.start(5000)  # cada 5 segundos
 
         # Restaurar geometría de la ventana
         geometry = self.settings.value("geometry")
@@ -247,9 +246,63 @@ class MainWindow(QMainWindow):
             editor.setFont(font)
 
     # =========================
+    # TERMINAL FUNCIONAL SIMPLE
+    # =========================
+    def init_terminal(self):
+        self.process = QProcess(self)
+        shell = "cmd.exe" if os.name == "nt" else "/bin/zsh"
+        self.process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
+        self.process.readyReadStandardOutput.connect(self.handle_terminal_output)
+        self.process.readyReadStandardError.connect(self.handle_terminal_output)
+        self.process.start(shell)
+        self.console.appendPlainText(f"Terminal iniciada en: {os.getcwd()}\n")
+        self.command_history = []
+        self.history_index = -1
+
+    def handle_terminal_output(self):
+        if self.process:
+            data = self.process.readAllStandardOutput().data().decode()
+            if data:
+                self.console.appendPlainText(data)
+                self.console.moveCursor(QTextCursor.MoveOperation.End)
+
+    def keyPressEvent(self, event):
+        if self.console.hasFocus():
+            if event.key() == Qt.Key.Key_Return:
+                # Obtener la última línea como comando
+                command = self.console.toPlainText().splitlines()[-1].strip()
+                if command:
+                    self.command_history.append(command)
+                    self.history_index = len(self.command_history)
+                    self.process.write((command + "\n").encode())
+                return
+            elif event.key() == Qt.Key.Key_Up:
+                # Navegar historial arriba
+                if self.command_history and self.history_index > 0:
+                    self.history_index -= 1
+                    self.replace_last_line(self.command_history[self.history_index])
+                return
+            elif event.key() == Qt.Key.Key_Down:
+                # Navegar historial abajo
+                if self.command_history and self.history_index < len(self.command_history) - 1:
+                    self.history_index += 1
+                    self.replace_last_line(self.command_history[self.history_index])
+                elif self.history_index == len(self.command_history) - 1:
+                    self.history_index += 1
+                    self.replace_last_line("")
+                return
+        super().keyPressEvent(event)
+
+    def replace_last_line(self, text):
+        cursor = self.console.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock, QTextCursor.MoveMode.KeepAnchor)
+        cursor.removeSelectedText()
+        cursor.insertText(text)
+        self.console.setTextCursor(cursor)
+
+    # =========================
     # MENÚ
     # =========================
-
     def create_menu(self):
         menu_bar = self.menuBar()
 
@@ -761,53 +814,22 @@ class MainWindow(QMainWindow):
 
             editor.cursorPositionChanged.connect(self.update_cursor)
    
-    def init_terminal(self):
-        self.process = QProcess(self)
-
-        # Detectar shell según sistema
-        shell = "cmd.exe" if os.name == "nt" else "/bin/zsh"
-
-        self.process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
-        self.process.readyReadStandardOutput.connect(lambda: self.handle_terminal_output(self.console))
-        self.process.readyReadStandardError.connect(lambda: self.handle_terminal_output(self.console))
-
-        self.process.start(shell)
-        self.console.appendPlainText(f"Terminal iniciada en: {os.getcwd()}\n")
-
     def handle_terminal_output(self):
-        data = self.process.readAll()
-        text = bytes(data).decode("utf-8")
-        self.console.insertPlainText(text)
+        if self.process:
+            data = self.process.readAllStandardOutput().data().decode()
+            if data:
+                self.console.appendPlainText(data)
 
     def keyPressEvent(self, event):
         if self.console.hasFocus() and event.key() == Qt.Key.Key_Return:
             cursor = self.console.textCursor()
             cursor.movePosition(cursor.MoveOperation.StartOfBlock, cursor.MoveMode.KeepAnchor)
             command = cursor.selectedText().strip()
-            self.process.write((command + "\n").encode("utf-8"))
-            self.console.appendPlainText("")  # Nueva línea después del comando
-        else:
-            super().keyPressEvent(event)
-
-    def handle_stdout(self):
-        data = self.process.readAllStandardOutput()
-        text = bytes(data).decode()
-        self.console.appendPlainText(text)
-
-    def handle_stderr(self):
-        data = self.process.readAllStandardError()
-        text = bytes(data).decode()
-        self.console.appendPlainText(text)
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Return:
-            cursor = self.console.textCursor()
-            cursor.select(cursor.SelectionType.LineUnderCursor)
-            command = cursor.selectedText()
-            self.process.write((command + "\n").encode())
-            self.console.appendPlainText(f"$ {command}")  # opcional, para mostrar comando
-        else:
-            super().keyPressEvent(event)
+            if command:
+                self.process.write((command + "\n").encode())
+                self.console.appendPlainText(f"$ {command}")  # opcional, muestra comando
+            return
+        super().keyPressEvent(event)
 
     def handle_process_output(self, output_widget):
         if not self.process:
