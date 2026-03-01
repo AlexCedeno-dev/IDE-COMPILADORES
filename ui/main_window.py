@@ -1,9 +1,9 @@
-from PyQt6.QtWidgets import (QMainWindow,QFileDialog,QTextEdit,QDockWidget)
-from PyQt6.QtGui import QAction
+from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt
-
+from PyQt6.QtGui import QAction, QKeySequence, QIcon
 from ui.editor import CodeEditor
 import subprocess
+import os
 
 
 class MainWindow(QMainWindow):
@@ -11,161 +11,269 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        # ---------------- Ventana ----------------
         self.setWindowTitle("IDE Compilador")
-        self.resize(1000, 700)
+        self.resize(1200, 800)
 
-        # ---------------- Editor central ----------------
-        self.editor = CodeEditor()
-        self.setCentralWidget(self.editor)
+        self.tabs = QTabWidget()
+        self.tabs.setTabsClosable(True)
+        self.tabs.tabCloseRequested.connect(self.close_tab)
+        self.setCentralWidget(self.tabs)
 
-        # archivo actual
-        self.current_file = None
+        self.statusBar().showMessage("Línea: 1 Columna: 1")
 
-        # ---------------- Consola inferior ----------------
-        self.console = QTextEdit()
-        self.console.setReadOnly(True)
-        self.console.setPlaceholderText("Salida del compilador...")
-
-        self.console_dock = QDockWidget("Consola", self)
-        self.console_dock.setWidget(self.console)
-
-        self.addDockWidget(
-            Qt.DockWidgetArea.BottomDockWidgetArea,
-            self.console_dock
-        )
-
-        # Crear menú
         self.create_menu()
+        self.create_toolbar()
+        self.create_docks()
 
-    # =====================================================
-    #                    MENÚ
-    # =====================================================
+        self.new_file()
 
-    def create_menu(self):
+    # =========================
+    # EDITOR ACTUAL
+    # =========================
 
-        menu_bar = self.menuBar()
+    def current_editor(self):
+        return self.tabs.currentWidget()
 
-        # ---------------- MENU ARCHIVO ----------------
-        file_menu = menu_bar.addMenu("Archivo")
+    def update_cursor(self):
+        editor = self.current_editor()
+        if editor:
+            cursor = editor.textCursor()
+            line = cursor.blockNumber() + 1
+            col = cursor.columnNumber() + 1
+            self.statusBar().showMessage(f"Línea: {line} Columna: {col}")
 
-        new_action = QAction("Nuevo", self)
-        new_action.triggered.connect(self.new_file)
-        file_menu.addAction(new_action)
-
-        open_action = QAction("Abrir", self)
-        open_action.triggered.connect(self.open_file)
-        file_menu.addAction(open_action)
-
-        save_action = QAction("Guardar", self)
-        save_action.triggered.connect(self.save_file)
-        file_menu.addAction(save_action)
-
-        save_as_action = QAction("Guardar como", self)
-        save_as_action.triggered.connect(self.save_as_file)
-        file_menu.addAction(save_as_action)
-
-        file_menu.addSeparator()
-
-        exit_action = QAction("Salir", self)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-
-        # ---------------- MENU COMPILAR ----------------
-        compile_menu = menu_bar.addMenu("Compilar")
-
-        lex_action = QAction("Análisis Léxico", self)
-        lex_action.triggered.connect(self.run_lexer)
-        compile_menu.addAction(lex_action)
-
-        syn_action = QAction("Análisis Sintáctico", self)
-        syn_action.triggered.connect(self.run_parser)
-        compile_menu.addAction(syn_action)
-
-        sem_action = QAction("Análisis Semántico", self)
-        sem_action.triggered.connect(self.run_semantic)
-        compile_menu.addAction(sem_action)
-
-    # =====================================================
-    #                FUNCIONES ARCHIVO
-    # =====================================================
+    # =========================
+    # ARCHIVOS
+    # =========================
 
     def new_file(self):
-        self.editor.clear()
-        self.current_file = None
+        editor = CodeEditor()
+        index = self.tabs.addTab(editor, "Sin título")
+        self.tabs.setCurrentIndex(index)
+        editor.cursorPositionChanged.connect(self.update_cursor)
 
     def open_file(self):
-        file_name, _ = QFileDialog.getOpenFileName(
-            self,
-            "Abrir archivo",
-            "",
-            "Archivos (*.txt *.py *.c *.cpp)"
-        )
+        file, _ = QFileDialog.getOpenFileName(self, "Abrir")
 
-        if file_name:
-            with open(file_name, "r", encoding="utf-8") as file:
-                self.editor.setPlainText(file.read())
+        if file:
+            with open(file, "r") as f:
+                content = f.read()
 
-            self.current_file = file_name
+            editor = CodeEditor()
+            editor.setPlainText(content)
+
+            filename = os.path.basename(file)
+            index = self.tabs.addTab(editor, filename)
+            self.tabs.setCurrentIndex(index)
+
+            editor.file_path = file
+            editor.cursorPositionChanged.connect(self.update_cursor)
 
     def save_file(self):
-        if self.current_file:
-            with open(self.current_file, "w", encoding="utf-8") as file:
-                file.write(self.editor.toPlainText())
+        editor = self.current_editor()
+
+        if hasattr(editor, "file_path"):
+            with open(editor.file_path, "w") as f:
+                f.write(editor.toPlainText())
         else:
             self.save_as_file()
 
     def save_as_file(self):
-        file_name, _ = QFileDialog.getSaveFileName(
-            self,
-            "Guardar archivo",
-            "",
-            "Archivos (*.txt)"
+        editor = self.current_editor()
+
+        file, _ = QFileDialog.getSaveFileName(self, "Guardar")
+
+        if file:
+            with open(file, "w") as f:
+                f.write(editor.toPlainText())
+
+            editor.file_path = file
+            filename = os.path.basename(file)
+            self.tabs.setTabText(self.tabs.currentIndex(), filename)
+
+    def close_tab(self, index):
+        self.tabs.removeTab(index)
+
+    def close_file(self):
+        index = self.tabs.currentIndex()
+        if index != -1:
+            self.tabs.removeTab(index)
+
+    # =========================
+    # MENÚ
+    # =========================
+
+    def create_menu(self):
+        menu_bar = self.menuBar()
+
+        # ===== ARCHIVO =====
+        file_menu = menu_bar.addMenu("📁 Archivo")
+
+        new_action = QAction("Nuevo", self)
+        new_action.setShortcut(QKeySequence("Ctrl+N"))
+        new_action.triggered.connect(self.new_file)
+        file_menu.addAction(new_action)
+
+        open_action = QAction("Abrir", self)
+        open_action.setShortcut(QKeySequence("Ctrl+O"))
+        open_action.triggered.connect(self.open_file)
+        file_menu.addAction(open_action)
+
+        save_action = QAction("Guardar", self)
+        save_action.setShortcut(QKeySequence("Ctrl+S"))
+        save_action.triggered.connect(self.save_file)
+        file_menu.addAction(save_action)
+
+        saveas_action = QAction("Guardar como", self)
+        saveas_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        saveas_action.triggered.connect(self.save_as_file)
+        file_menu.addAction(saveas_action)
+
+        close_action = QAction("Cerrar", self)
+        close_action.setShortcut(QKeySequence("Ctrl+W"))
+        close_action.triggered.connect(self.close_file)
+        file_menu.addAction(close_action)
+
+        file_menu.addSeparator()
+
+        exit_action = QAction("Salir", self)
+        exit_action.setShortcut(QKeySequence("Ctrl+Q"))
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        # ===== PESTAÑAS =====
+        tabs_menu = menu_bar.addMenu("🗂️ Pestañas")
+
+        next_tab = QAction("Siguiente", self)
+        next_tab.setShortcut(QKeySequence("Ctrl+Tab"))
+        next_tab.triggered.connect(
+            lambda: self.tabs.setCurrentIndex(
+                (self.tabs.currentIndex() + 1) % self.tabs.count()
+            )
         )
+        tabs_menu.addAction(next_tab)
 
-        if file_name:
-            with open(file_name, "w", encoding="utf-8") as file:
-                file.write(self.editor.toPlainText())
+        prev_tab = QAction("Anterior", self)
+        prev_tab.setShortcut(QKeySequence("Ctrl+Shift+Tab"))
+        prev_tab.triggered.connect(
+            lambda: self.tabs.setCurrentIndex(
+                (self.tabs.currentIndex() - 1) % self.tabs.count()
+            )
+        )
+        tabs_menu.addAction(prev_tab)
 
-            self.current_file = file_name
+        # ===== TEMAS =====
+        theme_menu = menu_bar.addMenu("🎨 Temas")
 
-    # =====================================================
-    #                CONSOLA
-    # =====================================================
+        dark = QAction("Oscuro", self)
+        dark.triggered.connect(lambda: self.set_theme("dark"))
+        theme_menu.addAction(dark)
 
-    def write_console(self, text):
-        self.console.append(text)
+        light = QAction("Claro", self)
+        light.triggered.connect(lambda: self.set_theme("light"))
+        theme_menu.addAction(light)
 
-    # =====================================================
-    #            FUNCIONES DEL COMPILADOR
-    # =====================================================
+        dracula = QAction("Dracula", self)
+        dracula.triggered.connect(lambda: self.set_theme("dracula"))
+        theme_menu.addAction(dracula)
 
-    def run_lexer(self):
+    # =========================
+    # TOOLBAR
+    # =========================
 
-        if not self.current_file:
-            self.write_console("⚠ Guarda el archivo antes de ejecutar.")
+    def create_toolbar(self):
+        toolbar = self.addToolBar("Compilar")
+
+        toolbar.addAction("Léxico", self.run_lexer)
+        toolbar.addAction("Sintáctico", self.run_parser)
+        toolbar.addAction("Semántico", self.run_semantic)
+        toolbar.addAction("Intermedio", self.run_intermediate)
+        toolbar.addAction("Ejecutar", self.run_execution)
+
+    # =========================
+    # DOCKS
+    # =========================
+
+    def create_docks(self):
+        self.lex = QTextEdit(); self.lex.setReadOnly(True)
+        self.syn = QTextEdit(); self.syn.setReadOnly(True)
+        self.sem = QTextEdit(); self.sem.setReadOnly(True)
+        self.inter = QTextEdit(); self.inter.setReadOnly(True)
+        self.sym = QTextEdit(); self.sym.setReadOnly(True)
+        self.err = QTextEdit(); self.err.setReadOnly(True)
+        self.console = QTextEdit(); self.console.setReadOnly(True)
+
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,
+                           self.createDock("Léxico", self.lex))
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,
+                           self.createDock("Sintáctico", self.syn))
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,
+                           self.createDock("Semántico", self.sem))
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,
+                           self.createDock("Intermedio", self.inter))
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea,
+                           self.createDock("Tabla de Símbolos", self.sym))
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea,
+                           self.createDock("Errores", self.err))
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea,
+                           self.createDock("Consola", self.console))
+
+    def createDock(self, title, widget):
+        dock = QDockWidget(title, self)
+        dock.setWidget(widget)
+        return dock
+
+    # =========================
+    # COMPILADOR
+    # =========================
+
+    def run_process(self, script, output):
+        editor = self.current_editor()
+
+        if not hasattr(editor, "file_path"):
+            self.console.append("Guarda el archivo primero")
             return
 
-        self.write_console(">>> Ejecutando análisis léxico...\n")
+        result = subprocess.run(
+            ["python", f"compiler/{script}", editor.file_path],
+            capture_output=True,
+            text=True
+        )
 
-        try:
-            result = subprocess.run(
-                ["python", "compiler/lexer.py", self.current_file],
-                capture_output=True,
-                text=True
-            )
+        output.setText(result.stdout)
 
-            if result.stdout:
-                self.write_console(result.stdout)
+        if result.stderr:
+            self.err.setText(result.stderr)
 
-            if result.stderr:
-                self.write_console("ERROR:\n" + result.stderr)
+    def run_lexer(self): self.run_process("lexer.py", self.lex)
+    def run_parser(self): self.run_process("parser.py", self.syn)
+    def run_semantic(self): self.run_process("semantic.py", self.sem)
+    def run_intermediate(self): self.run_process("intermediate.py", self.inter)
+    def run_execution(self): self.run_process("executor.py", self.console)
 
-        except Exception as e:
-            self.write_console(f"Error: {e}")
+    # =========================
+    # TEMAS
+    # =========================
 
-    def run_parser(self):
-        self.write_console(">>> Análisis sintáctico (pendiente)")
+    def set_theme(self, theme):
 
-    def run_semantic(self):
-        self.write_console(">>> Análisis semántico (pendiente)")
+        if theme == "dark":
+            self.setStyleSheet("""
+                QMainWindow { background:#1e1e1e; color:white; }
+                QTextEdit { background:#252526; color:#f8f8f2; }
+                QTabBar::tab:selected { background:#007acc; }
+            """)
+
+        elif theme == "light":
+            self.setStyleSheet("""
+                QMainWindow { background:white; color:black; }
+                QTextEdit { background:white; color:black; }
+                QTabBar::tab:selected { background:#ddd; }
+            """)
+
+        elif theme == "dracula":
+            self.setStyleSheet("""
+                QMainWindow { background:#282a36; color:#f8f8f2; }
+                QTextEdit { background:#44475a; color:#f8f8f2; }
+                QTabBar::tab:selected { background:#bd93f9; }
+            """)
