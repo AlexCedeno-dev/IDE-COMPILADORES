@@ -1,7 +1,11 @@
 from PyQt6.QtWidgets import *
-from PyQt6.QtCore import Qt, QSettings
-from PyQt6.QtGui import QAction, QKeySequence, QIcon
+from PyQt6.QtCore import Qt, QSettings, QTimer, QDir
+from PyQt6.QtGui import QAction, QKeySequence, QIcon, QFileSystemModel
 from ui.editor import CodeEditor
+from PyQt6.QtGui import QFont
+from PyQt6.QtCore import QProcess
+from PyQt6.QtWidgets import QFileDialog
+from PyQt6.QtGui import QColor
 import subprocess
 import os
 
@@ -22,15 +26,28 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
 
         self.statusBar().showMessage("Línea: 1 Columna: 1")
-
         self.create_menu()
         self.create_toolbar()
         self.create_docks()
+        self.init_terminal()
+        self.create_file_explorer()
 
         self.new_file()
 
         saved_theme = self.settings.value("theme", "dark")
         self.set_theme(saved_theme)
+
+        self.autosave_timer = QTimer()
+        self.autosave_timer.timeout.connect(self.auto_save)
+        self.autosave_timer.start(5000)  # cada 5 segundos
+
+        # Restaurar geometría de la ventana
+        geometry = self.settings.value("geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
+        window_state = self.settings.value("windowState")
+        if window_state:
+            self.restoreState(window_state)
 
     # =========================
     # EDITOR ACTUAL
@@ -68,8 +85,16 @@ class MainWindow(QMainWindow):
             editor.setPlainText(content)
 
             filename = os.path.basename(file)
+            # si quieres forzar extensión .py por defecto:
+            if not os.path.splitext(filename)[1]:
+                filename += ".py"
+
             index = self.tabs.addTab(editor, filename)
             self.tabs.setCurrentIndex(index)
+
+            name, ext = os.path.splitext(filename)
+            self.tabs.setTabText(index, name + ext)
+            self.tabs.tabBar().setTabTextColor(index, QColor("red"))
 
             editor.file_path = file
             editor.cursorPositionChanged.connect(self.update_cursor)
@@ -86,9 +111,12 @@ class MainWindow(QMainWindow):
     def save_as_file(self):
         editor = self.current_editor()
 
-        file, _ = QFileDialog.getSaveFileName(self, "Guardar")
-
+        file, _ = QFileDialog.getSaveFileName(self, "Guardar", filter="Python Files (*.py);;All Files (*)")
         if file:
+            # forzar extensión .py si el usuario no puso ninguna
+            if not os.path.splitext(file)[1]:
+                file += ".py"
+
             with open(file, "w") as f:
                 f.write(editor.toPlainText())
 
@@ -130,6 +158,24 @@ class MainWindow(QMainWindow):
 
         editor.cursorPositionChanged.connect(self.update_cursor)
 
+    # =========================
+    # AUTOGUARDADO
+    # =========================
+
+    def auto_save(self):
+
+        editor = self.current_editor()
+
+        if editor and hasattr(editor, "file_path"):
+
+            try:
+                with open(editor.file_path, "w") as f:
+                    f.write(editor.toPlainText())
+
+                self.statusBar().showMessage("Autoguardado ✔", 2000)
+
+            except:
+                pass
 
     # =========================
     # EDITAR FUNCIONES
@@ -220,6 +266,13 @@ class MainWindow(QMainWindow):
         open_action.triggered.connect(self.open_file)
         file_menu.addAction(open_action)
 
+        # Menú Archivo
+        open_folder_action = QAction("Abrir carpeta", self)
+        open_folder_action.setShortcut(QKeySequence("Ctrl+Shift+O"))
+        open_folder_action.triggered.connect(self.open_folder)
+        file_menu.addAction(open_folder_action)    
+                
+
         save_action = QAction("Guardar", self)
         save_action.setShortcut(QKeySequence("Ctrl+S"))
         save_action.triggered.connect(self.save_file)
@@ -301,8 +354,8 @@ class MainWindow(QMainWindow):
         reset_zoom_action = QAction("Restablecer Zoom", self)
         reset_zoom_action.setShortcut(QKeySequence("Ctrl+0"))
         reset_zoom_action.triggered.connect(self.reset_zoom)
-        edit_menu.addAction(reset_zoom_action)        
-        
+        edit_menu.addAction(reset_zoom_action)    
+
         # ===== PESTAÑAS =====
         tabs_menu = menu_bar.addMenu("Pestañas")
         tabs_menu.addSeparator()
@@ -372,8 +425,8 @@ class MainWindow(QMainWindow):
     # =========================
 
     def create_toolbar(self):
-
         self.toolbar = self.addToolBar("Compilar")
+        self.toolbar.setObjectName("toolbar_compilar")  # <-- ESTO ES LO IMPORTANTE
         self.toolbar.setMovable(False)
 
         self.lex_btn = QAction("Léxico", self)
@@ -413,41 +466,125 @@ class MainWindow(QMainWindow):
     # DOCKS
     # =========================
 
+        # =========================
+    # DOCKS Y TOOLBAR CON GUARDADO DE POSICIÓN
+    # =========================
+
     def create_docks(self):
+        # Docks
         self.lex = QTextEdit(); self.lex.setReadOnly(True)
         self.syn = QTextEdit(); self.syn.setReadOnly(True)
         self.sem = QTextEdit(); self.sem.setReadOnly(True)
         self.inter = QTextEdit(); self.inter.setReadOnly(True)
         self.sym = QTextEdit(); self.sym.setReadOnly(True)
         self.err = QTextEdit(); self.err.setReadOnly(True)
-        self.console = QTextEdit(); self.console.setReadOnly(True)
+        self.console = QPlainTextEdit()
+        self.console.setStyleSheet("background:black; color:#00ff00;")
+        self.console.setFont(QFont("JetBrains Mono", 11))
 
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,
-                           self.createDock("Léxico", self.lex))
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,
-                           self.createDock("Sintáctico", self.syn))
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,
-                           self.createDock("Semántico", self.sem))
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,
-                           self.createDock("Intermedio", self.inter))
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea,
-                           self.createDock("Tabla de Símbolos", self.sym))
-        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea,
-                           self.createDock("Errores", self.err))
-        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea,
-                           self.createDock("Consola", self.console))
+        # Crear docks con objectName único
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.createDock("Léxico", self.lex, "dock_lex"))
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.createDock("Sintáctico", self.syn, "dock_syn"))
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.createDock("Semántico", self.sem, "dock_sem"))
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.createDock("Intermedio", self.inter, "dock_int"))
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.createDock("Tabla de Símbolos", self.sym, "dock_sym"))
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.createDock("Errores", self.err, "dock_err"))
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.createDock("Consola", self.console, "dock_console"))
 
-    def createDock(self, title, widget):
+        # Restaurar geometría y estado si existía
+        if self.settings.contains("geometry"):
+            self.restoreGeometry(self.settings.value("geometry"))
+        if self.settings.contains("windowState"):
+            self.restoreState(self.settings.value("windowState"))
+
+    def createDock(self, title, widget, object_name):
         dock = QDockWidget(title, self)
         dock.setWidget(widget)
+        dock.setObjectName(object_name)  # MUY IMPORTANTE para que saveState funcione
 
         dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
             QDockWidget.DockWidgetFeature.DockWidgetFloatable |
             QDockWidget.DockWidgetFeature.DockWidgetClosable
         )
-
         return dock
+
+    def create_toolbar(self):
+        self.toolbar = self.addToolBar("Compilar")
+        self.toolbar.setMovable(True)
+        self.toolbar.setObjectName("toolbar_compilar")  # IMPORTANTE para saveState
+
+        # Botones
+        self.lex_btn = QAction("Léxico", self)
+        self.lex_btn.setCheckable(True)
+        self.lex_btn.triggered.connect(lambda: self.activate_button(self.lex_btn, self.run_lexer))
+
+        self.syn_btn = QAction("Sintáctico", self)
+        self.syn_btn.setCheckable(True)
+        self.syn_btn.triggered.connect(lambda: self.activate_button(self.syn_btn, self.run_parser))
+
+        self.sem_btn = QAction("Semántico", self)
+        self.sem_btn.setCheckable(True)
+        self.sem_btn.triggered.connect(lambda: self.activate_button(self.sem_btn, self.run_semantic))
+
+        self.int_btn = QAction("Intermedio", self)
+        self.int_btn.setCheckable(True)
+        self.int_btn.triggered.connect(lambda: self.activate_button(self.int_btn, self.run_intermediate))
+
+        self.exe_btn = QAction("Ejecutar", self)
+        self.exe_btn.setCheckable(True)
+        self.exe_btn.triggered.connect(lambda: self.activate_button(self.exe_btn, self.run_execution))
+
+        self.toolbar.addAction(self.lex_btn)
+        self.toolbar.addAction(self.syn_btn)
+        self.toolbar.addAction(self.sem_btn)
+        self.toolbar.addAction(self.int_btn)
+        self.toolbar.addAction(self.exe_btn)
+
+    # =========================
+    # SOBRESCRIBIR CLOSEEVENT PARA GUARDAR ESTADO
+    # =========================
+    def closeEvent(self, event):
+        # Guardar geometría y estado de docks/toolbar
+        self.settings.setValue("geometry", self.saveGeometry())
+        self.settings.setValue("windowState", self.saveState())
+        super().closeEvent(event)
+
+    def createDock(self, title, widget, object_name):
+        dock = QDockWidget(title, self)
+        dock.setWidget(widget)
+        dock.setObjectName(object_name)  # <-- ESTO ES IMPORTANTE
+        dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable |
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+        )
+        return dock
+    
+    # =========================
+    # EXPLORADOR DE ARCHIVOS
+    # =========================
+
+    def create_file_explorer(self):
+        self.model = QFileSystemModel()
+        self.model.setRootPath("")  # Sin ruta al inicio
+        self.model.setFilter(QDir.Filter.NoDotAndDotDot | QDir.Filter.AllEntries)
+
+        self.tree = QTreeView()
+        self.tree.setModel(self.model)
+        self.tree.doubleClicked.connect(self.open_file_from_explorer)
+        self.tree.setColumnWidth(0, 250)
+
+        self.explorer_dock = QDockWidget("Explorador", self)
+        self.explorer_dock.setWidget(self.tree)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.explorer_dock)
+
+    def open_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Abrir carpeta", QDir.homePath())
+        if folder:
+            # Cambiar raíz del modelo a la nueva carpeta
+            self.tree.setRootIndex(self.model.setRootPath(folder))
+            self.explorer_dock.setWindowTitle(f"Explorador - {folder}")
 
     # =========================
     # COMPILADOR
@@ -456,20 +593,19 @@ class MainWindow(QMainWindow):
     def run_process(self, script, output):
         editor = self.current_editor()
 
-        if not hasattr(editor, "file_path"):
-            self.console.append("Guarda el archivo primero")
+        if not editor or not hasattr(editor, "file_path"):
+            self.console.appendPlainText("Guarda el archivo primero")
             return
 
-        result = subprocess.run(
-            ["python", f"compiler/{script}", editor.file_path],
-            capture_output=True,
-            text=True
-        )
+        # Ejecutar el script usando QProcess
+        self.process = QProcess(self)
+        self.process.setProgram("python")
+        self.process.setArguments([f"compiler/{script}", editor.file_path])
+        self.process.readyReadStandardOutput.connect(lambda: self.handle_process_output(output))
+        self.process.readyReadStandardError.connect(lambda: self.handle_process_output(self.err))
+        self.process.finished.connect(lambda code, status: output.appendPlainText(f"\n[Proceso terminado con código {code}]"))
 
-        output.setText(result.stdout)
-
-        if result.stderr:
-            self.err.setText(result.stderr)
+        self.process.start()
 
     def run_lexer(self):
         self.run_process("lexer.py", self.lex)
@@ -604,3 +740,90 @@ class MainWindow(QMainWindow):
 
         dialog.setLayout(layout)
         dialog.exec()
+
+    def open_file_from_explorer(self, index):
+
+        file_path = self.model.filePath(index)
+
+        if os.path.isfile(file_path):
+
+            with open(file_path, "r") as f:
+                content = f.read()
+
+            editor = CodeEditor()
+            editor.setPlainText(content)
+            editor.file_path = file_path
+
+            filename = os.path.basename(file_path)
+
+            i = self.tabs.addTab(editor, filename)
+            self.tabs.setCurrentIndex(i)
+
+            editor.cursorPositionChanged.connect(self.update_cursor)
+   
+    def init_terminal(self):
+        self.process = QProcess(self)
+
+        # Detectar shell según sistema
+        if os.name == "nt":
+            shell = "cmd.exe"
+        else:
+            shell = "/bin/zsh"
+
+        # Configuración
+        self.process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
+        self.process.readyRead.connect(self.handle_terminal_output)
+
+        self.process.start(shell)
+        self.console.appendPlainText(f"Terminal iniciada en: {os.getcwd()}\n")
+
+    def handle_terminal_output(self):
+        data = self.process.readAll()
+        text = bytes(data).decode("utf-8")
+        self.console.insertPlainText(text)
+
+    def keyPressEvent(self, event):
+        if self.console.hasFocus() and event.key() == Qt.Key.Key_Return:
+            cursor = self.console.textCursor()
+            cursor.movePosition(cursor.MoveOperation.StartOfBlock, cursor.MoveMode.KeepAnchor)
+            command = cursor.selectedText().strip()
+            self.process.write((command + "\n").encode("utf-8"))
+            self.console.appendPlainText("")  # Nueva línea después del comando
+        else:
+            super().keyPressEvent(event)
+
+    def handle_stdout(self):
+        data = self.process.readAllStandardOutput()
+        text = bytes(data).decode()
+        self.console.appendPlainText(text)
+
+    def handle_stderr(self):
+        data = self.process.readAllStandardError()
+        text = bytes(data).decode()
+        self.console.appendPlainText(text)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Return:
+            cursor = self.console.textCursor()
+            cursor.select(cursor.SelectionType.LineUnderCursor)
+            command = cursor.selectedText()
+            self.process.write((command + "\n").encode())
+            self.console.appendPlainText(f"$ {command}")  # opcional, para mostrar comando
+        else:
+            super().keyPressEvent(event)
+
+    def handle_process_output(self, output_widget):
+        if not self.process:
+            return
+
+        out = self.process.readAllStandardOutput().data().decode()
+        err = self.process.readAllStandardError().data().decode()
+
+        if out:
+            output_widget.appendPlainText(out)
+        if err:
+            self.err.appendPlainText(err)
+
+    def run_execution(self):
+        self.run_process("executor.py", self.console)
+ 
