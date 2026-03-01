@@ -36,10 +36,10 @@ class MainWindow(QMainWindow):
 
         saved_theme = self.settings.value("theme", "dark")
         self.set_theme(saved_theme)
-
+        self.console.setPlainText("")  
         self.autosave_timer = QTimer()
         self.autosave_timer.timeout.connect(self.auto_save)
-        self.autosave_timer.start(5000)  # cada 5 segundos
+        self.autosave_timer.start(5000)  
 
         # Restaurar geometría de la ventana
         geometry = self.settings.value("geometry")
@@ -765,14 +765,11 @@ class MainWindow(QMainWindow):
         self.process = QProcess(self)
 
         # Detectar shell según sistema
-        if os.name == "nt":
-            shell = "cmd.exe"
-        else:
-            shell = "/bin/zsh"
+        shell = "cmd.exe" if os.name == "nt" else "/bin/zsh"
 
-        # Configuración
         self.process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
-        self.process.readyRead.connect(self.handle_terminal_output)
+        self.process.readyReadStandardOutput.connect(lambda: self.handle_terminal_output(self.console))
+        self.process.readyReadStandardError.connect(lambda: self.handle_terminal_output(self.console))
 
         self.process.start(shell)
         self.console.appendPlainText(f"Terminal iniciada en: {os.getcwd()}\n")
