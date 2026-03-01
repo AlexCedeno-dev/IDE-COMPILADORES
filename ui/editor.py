@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QPlainTextEdit, QWidget, QTextEdit
 from PyQt6.QtGui import QColor, QTextFormat, QPainter, QFont
 from PyQt6.QtCore import Qt, QRect, QSize
+from ui.syntax_highlighter import SyntaxHighlighter
 from PyQt6.QtGui import QAction, QKeySequence, QIcon
 import platform
 
@@ -15,6 +16,7 @@ class LineNumberArea(QWidget):
 
     def paintEvent(self, event):
         self.codeEditor.lineNumberAreaPaintEvent(event)
+    
 
 
 class CodeEditor(QPlainTextEdit):
@@ -43,6 +45,9 @@ class CodeEditor(QPlainTextEdit):
 
         self.updateLineNumberAreaWidth(0)
         self.highlightCurrentLine()
+
+        # activar syntax highlighting
+        self.highlighter = SyntaxHighlighter(self.document())
 
     def lineNumberAreaWidth(self):
         digits = len(str(self.blockCount()))

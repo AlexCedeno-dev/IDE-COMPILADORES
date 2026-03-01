@@ -26,7 +26,8 @@ class MainWindow(QMainWindow):
         self.create_docks()
 
         self.new_file()
-
+        
+        self.current_file = None
     # =========================
     # EDITOR ACTUAL
     # =========================
@@ -263,8 +264,8 @@ class MainWindow(QMainWindow):
         for action in self.toolbar.actions():
             action.setChecked(False)
 
-            btn.setChecked(True)
-            func()
+        btn.setChecked(True)
+        func()
 
     # =========================
     # DOCKS
@@ -321,7 +322,9 @@ class MainWindow(QMainWindow):
         if result.stderr:
             self.err.setText(result.stderr)
 
-    def run_lexer(self): self.run_process("lexer.py", self.lex)
+    def run_lexer(self):
+        self.run_process("lexer.py", self.lex)
+
     def run_parser(self): self.run_process("parser.py", self.syn)
     def run_semantic(self): self.run_process("semantic.py", self.sem)
     def run_intermediate(self): self.run_process("intermediate.py", self.inter)
