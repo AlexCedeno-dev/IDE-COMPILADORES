@@ -5,7 +5,6 @@ from ui.editor import CodeEditor
 import subprocess
 import os
 
-
 class MainWindow(QMainWindow):
 
     def __init__(self):
@@ -13,6 +12,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("IDE Compilador")
         self.resize(1200, 800)
+        self.closed_tabs = []  # 👈 ESTA LÍNEA ES LA QUE FALTA
 
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
@@ -92,6 +92,12 @@ class MainWindow(QMainWindow):
             self.tabs.setTabText(self.tabs.currentIndex(), filename)
 
     def close_tab(self, index):
+
+        editor = self.tabs.widget(index)
+        title = self.tabs.tabText(index)
+
+        self.closed_tabs.append((editor.toPlainText(), title))
+
         self.tabs.removeTab(index)
 
     def close_file(self):
@@ -99,6 +105,16 @@ class MainWindow(QMainWindow):
         if index != -1:
             self.tabs.removeTab(index)
 
+    def reopen_last_tab(self):
+        if self.closed_tabs:
+            content, title = self.closed_tabs.pop()
+
+            editor = CodeEditor()
+            editor.setPlainText(content)
+
+            index = self.tabs.addTab(editor, title)
+            self.tabs.setCurrentIndex(index)
+            editor.cursorPositionChanged.connect(self.update_cursor)
     # =========================
     # MENÚ
     # =========================
@@ -160,6 +176,10 @@ class MainWindow(QMainWindow):
                 (self.tabs.currentIndex() - 1) % self.tabs.count()
             )
         )
+        reopen_tab = QAction("Reabrir pestaña cerrada", self)
+        reopen_tab.setShortcut(QKeySequence("Ctrl+Shift+T"))
+        reopen_tab.triggered.connect(self.reopen_last_tab)
+        tabs_menu.addAction(reopen_tab)
         tabs_menu.addAction(prev_tab)
 
         # ===== TEMAS =====
@@ -209,13 +229,42 @@ class MainWindow(QMainWindow):
     # =========================
 
     def create_toolbar(self):
-        toolbar = self.addToolBar("Compilar")
 
-        toolbar.addAction("Léxico", self.run_lexer)
-        toolbar.addAction("Sintáctico", self.run_parser)
-        toolbar.addAction("Semántico", self.run_semantic)
-        toolbar.addAction("Intermedio", self.run_intermediate)
-        toolbar.addAction("Ejecutar", self.run_execution)
+        self.toolbar = self.addToolBar("Compilar")
+        self.toolbar.setMovable(False)
+
+        self.lex_btn = QAction("Léxico", self)
+        self.lex_btn.setCheckable(True)
+        self.lex_btn.triggered.connect(lambda: self.activate_button(self.lex_btn, self.run_lexer))
+
+        self.syn_btn = QAction("Sintáctico", self)
+        self.syn_btn.setCheckable(True)
+        self.syn_btn.triggered.connect(lambda: self.activate_button(self.syn_btn, self.run_parser))
+
+        self.sem_btn = QAction("Semántico", self)
+        self.sem_btn.setCheckable(True)
+        self.sem_btn.triggered.connect(lambda: self.activate_button(self.sem_btn, self.run_semantic))
+
+        self.int_btn = QAction("Intermedio", self)
+        self.int_btn.setCheckable(True)
+        self.int_btn.triggered.connect(lambda: self.activate_button(self.int_btn, self.run_intermediate))
+
+        self.exe_btn = QAction("Ejecutar", self)
+        self.exe_btn.setCheckable(True)
+        self.exe_btn.triggered.connect(lambda: self.activate_button(self.exe_btn, self.run_execution))
+
+        self.toolbar.addAction(self.lex_btn)
+        self.toolbar.addAction(self.syn_btn)
+        self.toolbar.addAction(self.sem_btn)
+        self.toolbar.addAction(self.int_btn)
+        self.toolbar.addAction(self.exe_btn)
+
+    def activate_button(self, btn, func):
+        for action in self.toolbar.actions():
+            action.setChecked(False)
+
+            btn.setChecked(True)
+            func()
 
     # =========================
     # DOCKS
