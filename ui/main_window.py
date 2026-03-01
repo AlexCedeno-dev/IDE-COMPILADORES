@@ -6,6 +6,7 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtCore import QProcess
 from PyQt6.QtWidgets import QFileDialog
 from PyQt6.QtGui import QColor
+import locale
 import subprocess
 import os
 
@@ -779,7 +780,8 @@ class MainWindow(QMainWindow):
 
     def handle_terminal_output(self):
         data = self.process.readAll()
-        text = bytes(data).decode("utf-8")
+        encoding = locale.getpreferredencoding(False)
+        text = bytes(data).decode(encoding, errors="replace")
         self.console.insertPlainText(text)
 
     def keyPressEvent(self, event):
