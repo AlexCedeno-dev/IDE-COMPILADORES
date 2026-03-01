@@ -117,3 +117,12 @@ class CodeEditor(QPlainTextEdit):
             extraSelections.append(selection)
 
         self.setExtraSelections(extraSelections)
+
+    def wheelEvent(self, event):
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            if event.angleDelta().y() > 0:
+                self.zoomIn(2)
+            else:
+                self.zoomOut(2)
+        else:
+            super().wheelEvent(event)

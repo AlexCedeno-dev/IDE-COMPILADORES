@@ -180,6 +180,27 @@ class MainWindow(QMainWindow):
                     QMessageBox.information(self, "Buscar", "No se encontró el texto")
 
     # =========================
+    # ZOOM
+    # =========================
+
+    def zoom_in(self):
+        editor = self.current_editor()
+        if editor:
+            editor.zoomIn(2)
+
+    def zoom_out(self):
+        editor = self.current_editor()
+        if editor:
+            editor.zoomOut(2)
+
+    def reset_zoom(self):
+        editor = self.current_editor()
+        if editor:
+            font = editor.font()
+            font.setPointSize(12)
+            editor.setFont(font)
+
+    # =========================
     # MENÚ
     # =========================
 
@@ -265,6 +286,23 @@ class MainWindow(QMainWindow):
         find_action.triggered.connect(self.show_find_dialog)
         edit_menu.addAction(find_action)
 
+        edit_menu.addSeparator()
+
+        zoom_in_action = QAction("Zoom +", self)
+        zoom_in_action.setShortcut(QKeySequence("Ctrl++"))
+        zoom_in_action.triggered.connect(self.zoom_in)
+        edit_menu.addAction(zoom_in_action)
+
+        zoom_out_action = QAction("Zoom -", self)
+        zoom_out_action.setShortcut(QKeySequence("Ctrl+-"))
+        zoom_out_action.triggered.connect(self.zoom_out)
+        edit_menu.addAction(zoom_out_action)
+
+        reset_zoom_action = QAction("Restablecer Zoom", self)
+        reset_zoom_action.setShortcut(QKeySequence("Ctrl+0"))
+        reset_zoom_action.triggered.connect(self.reset_zoom)
+        edit_menu.addAction(reset_zoom_action)        
+        
         # ===== PESTAÑAS =====
         tabs_menu = menu_bar.addMenu("Pestañas")
         tabs_menu.addSeparator()
