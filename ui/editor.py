@@ -20,39 +20,43 @@ class LineNumberArea(QWidget):
 
 
 class CodeEditor(QPlainTextEdit):
-
     def __init__(self):
         super().__init__()
 
-        if platform.system() == "Darwin":
-            self.setFont(QFont("Menlo", 11))
-        else:
-            self.setFont(QFont("Consolas", 11))
+        # NO romper líneas automáticamente, pero respetar los saltos de línea existentes
+        self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
+        self.setFont(QFont("Menlo", 11) if platform.system() == "Darwin" else QFont("Consolas", 11))
         self.setStyleSheet("""
             QPlainTextEdit {
                 background-color: #1e1e1e;
                 color: white;
                 border: none;
+                padding: 5px;
             }
         """)
 
+        # Barra de números de línea
         self.lineNumberArea = LineNumberArea(self)
-
         self.blockCountChanged.connect(self.updateLineNumberAreaWidth)
         self.updateRequest.connect(self.updateLineNumberArea)
         self.cursorPositionChanged.connect(self.highlightCurrentLine)
-
         self.updateLineNumberAreaWidth(0)
         self.highlightCurrentLine()
 
-        # activar syntax highlighting
+        # syntax highlighting
         self.highlighter = SyntaxHighlighter(self.document())
 
+        # Ya no hacemos que todo sea un solo párrafo
+        # self.textChanged.connect(self.force_single_paragraph)  <-- Eliminado
+
+    # ----------------------------------------
+    # Números de línea
+    # ----------------------------------------
     def lineNumberAreaWidth(self):
         digits = len(str(self.blockCount()))
-        space = 3 + self.fontMetrics().horizontalAdvance('9') * digits
-        return space
+        return 10 + self.fontMetrics().horizontalAdvance('9') * digits
 
     def updateLineNumberAreaWidth(self, _):
         self.setViewportMargins(self.lineNumberAreaWidth(), 0, 0, 0)
@@ -61,61 +65,53 @@ class CodeEditor(QPlainTextEdit):
         if dy:
             self.lineNumberArea.scroll(0, dy)
         else:
-            self.lineNumberArea.update(0, rect.y(),
-                                       self.lineNumberArea.width(), rect.height())
-
+            self.lineNumberArea.update(0, rect.y(), self.lineNumberArea.width(), rect.height())
         if rect.contains(self.viewport().rect()):
             self.updateLineNumberAreaWidth(0)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         cr = self.contentsRect()
-        self.lineNumberArea.setGeometry(
-            QRect(cr.left(), cr.top(),
-                  self.lineNumberAreaWidth(), cr.height())
-        )
+        self.lineNumberArea.setGeometry(QRect(cr.left(), cr.top(), self.lineNumberAreaWidth(), cr.height()))
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
     def lineNumberAreaPaintEvent(self, event):
         painter = QPainter(self.lineNumberArea)
-        painter.fillRect(event.rect(), QColor(30, 30, 30))
+        painter.fillRect(event.rect(), QColor(40, 40, 40))
 
         block = self.firstVisibleBlock()
         blockNumber = block.blockNumber()
-        top = int(self.blockBoundingGeometry(
-            block).translated(self.contentOffset()).top())
+        top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
         bottom = top + int(self.blockBoundingRect(block).height())
+        current_line = self.textCursor().blockNumber()
 
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
                 number = str(blockNumber + 1)
-                painter.setPen(Qt.GlobalColor.white)
-                painter.drawText(0, top, self.lineNumberArea.width(),
+                if blockNumber == current_line:
+                    painter.fillRect(0, top, self.lineNumberArea.width(), self.fontMetrics().height(), QColor(60, 60, 60))
+                    painter.setPen(QColor(255, 255, 255))
+                else:
+                    painter.setPen(QColor(150, 150, 150))
+                painter.drawText(0, top, self.lineNumberArea.width() - 6,
                                  self.fontMetrics().height(),
-                                 Qt.AlignmentFlag.AlignRight, number)
-
+                                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                                 number)
             block = block.next()
             top = bottom
-            bottom = top + \
-                int(self.blockBoundingRect(block).height())
+            bottom = top + int(self.blockBoundingRect(block).height())
             blockNumber += 1
 
     def highlightCurrentLine(self):
         extraSelections = []
-
         if not self.isReadOnly():
             selection = QTextEdit.ExtraSelection()
-
             lineColor = QColor(40, 40, 40)
-
             selection.format.setBackground(lineColor)
-            selection.format.setProperty(
-                QTextFormat.Property.FullWidthSelection, True)
-
+            selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             selection.cursor = self.textCursor()
             selection.cursor.clearSelection()
-
             extraSelections.append(selection)
-
         self.setExtraSelections(extraSelections)
 
     def wheelEvent(self, event):
