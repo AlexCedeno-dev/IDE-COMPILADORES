@@ -1,58 +1,46 @@
+# compiler/lexer.py
 import re
-import sys
-from tokens import TOKEN_TYPES
 
+TOKEN_TYPES = {
+    "NUMBER": r"\d+",
+    "ID": r"[a-zA-Z_]\w*",
+    "PLUS": r"\+",
+    "EQUAL": r"=",
+    "LPAREN": r"\(",
+    "RPAREN": r"\)",
+    "PRINT": r"print",
+    "UNKNOWN": r"."
+}
 
-class Lexer:
+def tokenize(code):
+    tokens = []
+    position = 0
+    while position < len(code):
+        if code[position].isspace():
+            position += 1
+            continue
 
-    def __init__(self, code):
-        self.code = code
-        self.tokens = []
+        match = None
+        for token_type, pattern in TOKEN_TYPES.items():
+            regex = re.compile(pattern)
+            match = regex.match(code, position)
+            if match:
+                lexeme = match.group(0)
+                if token_type != "UNKNOWN":  # ignorar chars desconocidos
+                    tokens.append((token_type, lexeme))
+                position = match.end()
+                break
 
-    def tokenize(self):
+        if not match:
+            raise SyntaxError(f"Token desconocido: {code[position]}")
 
-        position = 0
+    return tokens
 
-        while position < len(self.code):
-
-            match = None
-
-            # ignorar espacios
-            if self.code[position].isspace():
-                position += 1
-                continue
-
-            for token_type, pattern in TOKEN_TYPES.items():
-
-                regex = re.compile(pattern)
-                match = regex.match(self.code, position)
-
-                if match:
-                    lexeme = match.group(0)
-
-                    self.tokens.append((token_type, lexeme))
-
-                    position = match.end()
-                    break
-
-            if not match:
-                raise SyntaxError(
-                    f"Token desconocido: {self.code[position]}"
-                )
-
-        return self.tokens
-
-
-# -------- ejecución desde terminal --------
 if __name__ == "__main__":
-
-    file_path = sys.argv[1]
-
-    with open(file_path, "r", encoding="utf-8") as f:
+    import sys
+    file = sys.argv[1]
+    with open(file, "r") as f:
         code = f.read()
-
-    lexer = Lexer(code)
-    tokens = lexer.tokenize()
-
+    tokens = tokenize(code)
     for t in tokens:
         print(t)

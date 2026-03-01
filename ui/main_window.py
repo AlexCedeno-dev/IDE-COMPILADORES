@@ -524,18 +524,18 @@ class MainWindow(QMainWindow):
     # =========================
 
     def create_docks(self):
-        # Docks
-        self.lex = QTextEdit(); self.lex.setReadOnly(True)
-        self.syn = QTextEdit(); self.syn.setReadOnly(True)
-        self.sem = QTextEdit(); self.sem.setReadOnly(True)
-        self.inter = QTextEdit(); self.inter.setReadOnly(True)
-        self.sym = QTextEdit(); self.sym.setReadOnly(True)
-        self.err = QTextEdit(); self.err.setReadOnly(True)
+        # Docks que muestran salida de texto
+        self.lex = QPlainTextEdit(); self.lex.setReadOnly(True)
+        self.syn = QPlainTextEdit(); self.syn.setReadOnly(True)
+        self.sem = QPlainTextEdit(); self.sem.setReadOnly(True)
+        self.inter = QPlainTextEdit(); self.inter.setReadOnly(True)
+        self.sym = QPlainTextEdit(); self.sym.setReadOnly(True)
+        self.err = QPlainTextEdit(); self.err.setReadOnly(True)
         self.console = QPlainTextEdit()
         self.console.setStyleSheet("background:black; color:#00ff00;")
         self.console.setFont(QFont("JetBrains Mono", 11))
 
-        # Crear docks con objectName único
+        # Crear docks
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.createDock("Léxico", self.lex, "dock_lex"))
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.createDock("Sintáctico", self.syn, "dock_syn"))
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.createDock("Semántico", self.sem, "dock_sem"))
@@ -543,8 +543,7 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.createDock("Tabla de Símbolos", self.sym, "dock_sym"))
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.createDock("Errores", self.err, "dock_err"))
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.createDock("Consola", self.console, "dock_console"))
-
-        # Restaurar geometría y estado si existía
+        
         if self.settings.contains("geometry"):
             self.restoreGeometry(self.settings.value("geometry"))
         if self.settings.contains("windowState"):
@@ -561,6 +560,10 @@ class MainWindow(QMainWindow):
             QDockWidget.DockWidgetFeature.DockWidgetClosable
         )
         return dock
+    
+    def run_lexer(self):
+        self.lex.clear()
+        self.run_process("lexer.py", self.lex)
 
     def create_toolbar(self):
         self.toolbar = self.addToolBar("Compilar")
@@ -643,31 +646,50 @@ class MainWindow(QMainWindow):
     # COMPILADOR
     # =========================
 
-    def run_process(self, script, output):
+    def run_process(self, script, output_widget):
         editor = self.current_editor()
-
         if not editor or not hasattr(editor, "file_path"):
             self.console.appendPlainText("Guarda el archivo primero")
             return
 
-        # Ejecutar el script usando QProcess
         self.process = QProcess(self)
         self.process.setProgram("python")
         self.process.setArguments([f"compiler/{script}", editor.file_path])
-        self.process.readyReadStandardOutput.connect(lambda: self.handle_process_output(output))
+        self.process.readyReadStandardOutput.connect(lambda: self.handle_process_output(output_widget))
         self.process.readyReadStandardError.connect(lambda: self.handle_process_output(self.err))
-        self.process.finished.connect(lambda code, status: output.appendPlainText(f"\n[Proceso terminado con código {code}]"))
-
         self.process.start()
 
     def run_lexer(self):
         self.run_process("lexer.py", self.lex)
 
     def run_parser(self): self.run_process("parser.py", self.syn)
-    def run_semantic(self): self.run_process("semantic.py", self.sem)
+    def run_semantic(self):
+        editor = self.current_editor()
+        if not editor or not hasattr(editor, "file_path"):
+            self.console.appendPlainText("Guarda el archivo primero")
+            return
+
+        self.process = QProcess(self)
+        self.process.setProgram("python")
+        self.process.setArguments(["compiler/semantic.py", editor.file_path])
+        self.process.readyReadStandardOutput.connect(self.handle_semantic_output)
+        self.process.readyReadStandardError.connect(lambda: self.err.appendPlainText(self.process.readAllStandardError().data().decode()))
+        self.process.start()
     def run_intermediate(self): self.run_process("intermediate.py", self.inter)
     def run_execution(self): self.run_process("executor.py", self.console)
-
+    
+    def handle_semantic_output(self):
+        output = self.process.readAllStandardOutput().data().decode()
+        if not output.strip():
+            return
+        # Separar tabla y errores
+        if "===TABLA_DE_SIMBOLOS===" in output and "===ERRORES_SEMANTICOS===" in output:
+            tabla = output.split("===TABLA_DE_SIMBOLOS===")[1].split("===ERRORES_SEMANTICOS===")[0].strip()
+            errores = output.split("===ERRORES_SEMANTICOS===")[1].strip()
+            self.sym.setPlainText(tabla if tabla else "(Tabla vacía)")
+            self.err.setPlainText(errores if errores else "Sin errores semánticos")
+        else:
+            self.console.appendPlainText(output)
     # =========================
     # TEMAS
     # =========================
