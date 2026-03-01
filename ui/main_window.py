@@ -9,11 +9,12 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.settings = QSettings("IDECompilador", "IDEConfig")
 
+        self.settings = QSettings("IDECompilador", "IDEConfig")
         self.setWindowTitle("IDE Compilador")
         self.resize(1200, 800)
-        self.closed_tabs = []  # 👈 ESTA LÍNEA ES LA QUE FALTA
+
+        self.closed_tabs = []
 
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
@@ -27,10 +28,10 @@ class MainWindow(QMainWindow):
         self.create_docks()
 
         self.new_file()
+
         saved_theme = self.settings.value("theme", "dark")
         self.set_theme(saved_theme)
-        
-        self.current_file = None
+
     # =========================
     # EDITOR ACTUAL
     # =========================
@@ -94,18 +95,16 @@ class MainWindow(QMainWindow):
             editor.file_path = file
             filename = os.path.basename(file)
             self.tabs.setTabText(self.tabs.currentIndex(), filename)
-
+    
     def close_tab(self, index):
-
         editor = self.tabs.widget(index)
 
-        tab_data = {
-            "content": editor.toPlainText(),
-            "title": self.tabs.tabText(index),
-            "file_path": getattr(editor, "file_path", None)
-        }
-
-        self.closed_tabs.append(tab_data)
+        if editor:
+            self.closed_tabs.append({
+                "content": editor.toPlainText(),
+                "title": self.tabs.tabText(index),
+                "file_path": getattr(editor, "file_path", None)
+            })
 
         self.tabs.removeTab(index)
 
@@ -117,9 +116,10 @@ class MainWindow(QMainWindow):
     def reopen_last_tab(self):
         if not self.closed_tabs:
             return
+
         data = self.closed_tabs.pop()
-        
-        editor = CodeEditor()       
+
+        editor = CodeEditor()
         editor.setPlainText(data["content"])
 
         if data["file_path"]:
@@ -130,11 +130,56 @@ class MainWindow(QMainWindow):
 
         editor.cursorPositionChanged.connect(self.update_cursor)
 
-        if len(self.closed_tabs) == 0:
-            self.statusBar().showMessage("No hay pestañas para reabrir")
 
+    # =========================
+    # EDITAR FUNCIONES
+    # =========================
 
-        # =========================
+    def current_editor(self):
+        editor = self.tabs.currentWidget()
+        if isinstance(editor, CodeEditor):
+            return editor
+        return None
+
+    def undo_text(self):
+        editor = self.current_editor()
+        if editor:
+            editor.undo()
+
+    def redo_text(self):
+        editor = self.current_editor()
+        if editor:
+            editor.redo()
+
+    def cut_text(self):
+        editor = self.current_editor()
+        if editor:
+            editor.cut()
+
+    def copy_text(self):
+        editor = self.current_editor()
+        if editor:
+            editor.copy()
+
+    def paste_text(self):
+        editor = self.current_editor()
+        if editor:
+            editor.paste()
+
+    def select_all_text(self):
+        editor = self.current_editor()
+        if editor:
+            editor.selectAll()
+
+    def show_find_dialog(self):
+        editor = self.current_editor()
+        if editor:
+            text, ok = QInputDialog.getText(self, "Buscar", "Texto:")
+            if ok and text:
+                if not editor.find(text):
+                    QMessageBox.information(self, "Buscar", "No se encontró el texto")
+
+    # =========================
     # MENÚ
     # =========================
 
@@ -176,8 +221,53 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
+        # ===== EDITAR =====
+        edit_menu = menu_bar.addMenu("Editar")
+
+        undo_action = QAction("Deshacer", self)
+        undo_action.setShortcut(QKeySequence("Ctrl+Z"))
+        undo_action.triggered.connect(self.undo_text)
+        edit_menu.addAction(undo_action)
+
+        redo_action = QAction("Rehacer", self)
+        redo_action.setShortcut(QKeySequence("Ctrl+Y"))
+        redo_action.triggered.connect(self.redo_text)
+        edit_menu.addAction(redo_action)
+
+        edit_menu.addSeparator()
+
+        cut_action = QAction("Cortar", self)
+        cut_action.setShortcut(QKeySequence("Ctrl+X"))
+        cut_action.triggered.connect(self.cut_text)
+        edit_menu.addAction(cut_action)
+
+        copy_action = QAction("Copiar", self)
+        copy_action.setShortcut(QKeySequence("Ctrl+C"))
+        copy_action.triggered.connect(self.copy_text)
+        edit_menu.addAction(copy_action)
+
+        paste_action = QAction("Pegar", self)
+        paste_action.setShortcut(QKeySequence("Ctrl+V"))
+        paste_action.triggered.connect(self.paste_text)
+        edit_menu.addAction(paste_action)
+
+        edit_menu.addSeparator()
+
+        select_all_action = QAction("Seleccionar Todo", self)
+        select_all_action.setShortcut(QKeySequence("Ctrl+A"))
+        select_all_action.triggered.connect(self.select_all_text)
+        edit_menu.addAction(select_all_action)
+
+        edit_menu.addSeparator()
+
+        find_action = QAction("Buscar", self)
+        find_action.setShortcut(QKeySequence("Ctrl+F"))
+        find_action.triggered.connect(self.show_find_dialog)
+        edit_menu.addAction(find_action)
+
         # ===== PESTAÑAS =====
         tabs_menu = menu_bar.addMenu("Pestañas")
+        tabs_menu.addSeparator()
 
         next_tab = QAction("Siguiente", self)
         next_tab.setShortcut(QKeySequence("Ctrl+Tab"))
@@ -195,10 +285,6 @@ class MainWindow(QMainWindow):
                 (self.tabs.currentIndex() - 1) % self.tabs.count()
             )
         )
-        reopen_tab = QAction("Reabrir pestaña cerrada", self)
-        reopen_tab.setShortcut(QKeySequence("Ctrl+Shift+T"))
-        reopen_tab.triggered.connect(self.reopen_last_tab)
-        tabs_menu.addAction(reopen_tab)
         tabs_menu.addAction(prev_tab)
 
         # ===== TEMAS =====
@@ -316,6 +402,13 @@ class MainWindow(QMainWindow):
     def createDock(self, title, widget):
         dock = QDockWidget(title, self)
         dock.setWidget(widget)
+
+        dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable |
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+        )
+
         return dock
 
     # =========================
