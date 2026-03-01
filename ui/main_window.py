@@ -98,9 +98,14 @@ class MainWindow(QMainWindow):
     def close_tab(self, index):
 
         editor = self.tabs.widget(index)
-        title = self.tabs.tabText(index)
 
-        self.closed_tabs.append((editor.toPlainText(), title))
+        tab_data = {
+            "content": editor.toPlainText(),
+            "title": self.tabs.tabText(index),
+            "file_path": getattr(editor, "file_path", None)
+        }
+
+        self.closed_tabs.append(tab_data)
 
         self.tabs.removeTab(index)
 
@@ -110,16 +115,26 @@ class MainWindow(QMainWindow):
             self.tabs.removeTab(index)
 
     def reopen_last_tab(self):
-        if self.closed_tabs:
-            content, title = self.closed_tabs.pop()
+        if not self.closed_tabs:
+            return
+        data = self.closed_tabs.pop()
+        
+        editor = CodeEditor()       
+        editor.setPlainText(data["content"])
 
-            editor = CodeEditor()
-            editor.setPlainText(content)
+        if data["file_path"]:
+            editor.file_path = data["file_path"]
 
-            index = self.tabs.addTab(editor, title)
-            self.tabs.setCurrentIndex(index)
-            editor.cursorPositionChanged.connect(self.update_cursor)
-    # =========================
+        index = self.tabs.addTab(editor, data["title"])
+        self.tabs.setCurrentIndex(index)
+
+        editor.cursorPositionChanged.connect(self.update_cursor)
+
+        if len(self.closed_tabs) == 0:
+            self.statusBar().showMessage("No hay pestañas para reabrir")
+
+
+        # =========================
     # MENÚ
     # =========================
 
