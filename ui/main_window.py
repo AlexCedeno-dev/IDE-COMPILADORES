@@ -411,7 +411,7 @@ class MainWindow(QMainWindow):
                 QMenu { background:#001100; color:#00ff00; }
             """)
 
-            self.settings.setValue("theme", theme)
+        self.settings.setValue("theme", theme)
 
     
     def show_developers(self):
